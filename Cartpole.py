@@ -14,12 +14,12 @@ from gymnasium import Env, spaces
 
 def test(model, env):
     # Test de l'agent entraîné
-    observation = env.reset()
+    observation, _info = env.reset()
     done = False
     step = 0
     while not done:
         action, _ = model.predict(observation, deterministic=True)
-        observation, reward, done, info = env.step(action)
+        observation, reward, done, truncated, info = env.step(action)
         env.render(mode='human')
         step += 1
     
@@ -186,12 +186,12 @@ class CustomCartPoleEnv(Env):
             self.steps_beyond_done += 1
             reward = 0.0
 
-        return np.array(self.state), reward, done, {}
+        return np.array(self.state), reward, done, False, {}
 
-    def reset(self):
+    def reset(self, **kwargs):
         self.state = np.random.uniform(low=-0.05, high=0.05, size=(4,))
         self.steps_beyond_done = None
-        return np.array(self.state)
+        return np.array(self.state), {}
 
     def close(self):
         if self.viewer is not None:
@@ -205,7 +205,7 @@ class CustomCartPoleEnv(Env):
 env = CustomCartPoleEnv()
 
 # Initialisation de l'agent
-model = PPO('MlpPolicy', env, verbose=1, device="cuda")
+model = PPO('MlpPolicy', env, verbose=1)
 
 test(model, env)
 

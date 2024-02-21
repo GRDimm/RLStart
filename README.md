@@ -9,7 +9,7 @@ Ce repository contient des petits projets de reinforcement learning que je déve
 - `stable_baselines3`: Une bibliothèque offrant des implémentations de qualité de divers algorithmes de reinforcement learning.
 - `box2d`: Utilisé pour certains environnements nécessitant la physique, comme le Lunar Lander.
 
-## Projets
+## Notions
 
 ### Utilisation de PPO
 Implémentation de l'algorithme Proximal Policy Optimization (PPO) sur différents environnements Gymnasium.
@@ -19,3 +19,17 @@ Mise en œuvre de Deep Q-Network (DQN) pour apprendre des stratégies optimales 
 
 ### Création d'un environnement custom de Lunar Lander
 Développement et entraînement d'un modèle dans un environnement personnalisé de Lunar Lander, visant à tester et améliorer les compétences de conception d'environnements.
+
+## Projets/Fichiers
+
+### `Cartpole.py` 
+- Environement custom reproduisant l'environement CartPole-v1 de gym.
+- Objectif : bouger de droite à gauche pour ne par faire tomber la barre
+
+### `CustomLander.py` 
+- Environement custom reproduisant l'environement LunarLander-v2 de gym.
+- Objectif : Aterrir proprement sur une plateforme positionnée aléatoirement avec un moteur central et deux moteurs latéraux.
+
+### `CustomExplorer.py` 
+- Environement custom.
+- Objectif : Cartographier la map, rewards d'exploration. 
