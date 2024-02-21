@@ -29,6 +29,7 @@ Développement et entraînement d'un modèle dans un environnement personnalisé
 ### `CustomLander.py` 
 - Environement custom reproduisant l'environement LunarLander-v2 de gym.
 - Objectif : Aterrir proprement sur une plateforme positionnée aléatoirement avec un moteur central et deux moteurs latéraux.
+![](https://github.com/GRDimm/RLStart/images/CustomLander.gif)
 
 ### `CustomExplorer.py` 
 - Environement custom.
