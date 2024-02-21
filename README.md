@@ -31,7 +31,7 @@ Développement et entraînement d'un modèle dans un environnement personnalisé
 - Objectif : Aterrir proprement sur une plateforme positionnée aléatoirement avec un moteur central et deux moteurs latéraux.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/GRDimm/RLStart/main/images/CustomLander.gif" width="50%" height="50%" />
+  <img src="https://raw.githubusercontent.com/GRDimm/RLStart/main/images/CustomLander.gif" width="80%" height="80%" />
 </p>
 
 ### `CustomExplorer.py` 
