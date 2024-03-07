@@ -12,10 +12,9 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from stable_baselines3.common import logger
 
 from stable_baselines3.common.callbacks import BaseCallback
+
 from stable_baselines3.common.logger import Logger, configure
 
-# Assurez-vous de configurer le logger si nécessaire
-# Par exemple, pour écrire dans le dossier de logs courant et à la console
 logger = configure(folder="./logs", format_strings=["stdout", "log"])
 
 class MinMaxScaler:
@@ -96,20 +95,20 @@ class RayCastCallback(Box2D.b2RayCastCallback):
         self.fraction = fraction
         return fraction
 
-class CustomLunarLander(gym.Env):
+class CustomExplorer(gym.Env):
     metadata = {'render.modes': ['human']}
     
     def __init__(self):
-        super(CustomLunarLander, self).__init__()
+        super(CustomExplorer, self).__init__()
         self.action_space = spaces.Discrete(4)
-        self.n_rays = 0
+        self.n_rays = 12
         self.grid_size = (50, 50)
 
-        self.observation_space = spaces.Box(-np.inf, np.inf, shape=(4 + 2 * self.n_rays + 2,), dtype=np.float32)
+        self.observation_space = spaces.Box(-np.inf, np.inf, shape=(4 + 2*self.n_rays + 1 + 2,), dtype=np.float32)
         self.window_width = 800
         self.window_height = 600
-        self.world = world(gravity=(0, -10))
-        self.timeout = np.inf
+        self.world = world(gravity=(0, 0))
+        self.timeout = 10000
         self.mouse = False
         self.step_reward = 0
         self.lander = None
@@ -117,29 +116,35 @@ class CustomLunarLander(gym.Env):
         self.screen = None
         self.clock = pygame.time.Clock()
         self.lander_height = 1
-        self.lander_width = 1.5
+        self.lander_width = 1
         self.num_envs = 1
         self.reactor_width = 2
         self.render_mode = 'human'
         self.timesteps = 0
         self.last_action = 0
-        self.last_rewards = {"distance":0, "step":0, "total":0, "exploration":0}
+        self.last_rewards = {"distance":0, "step":0, "total":0, "exploration":0, "binary_rays":0}
         self.rewards = [-1, -1, -1, -1]
-        self.target_length = 2
-        self.target_height = 0.1
+        self.target_length = 1
+        self.target_height = 1
         self.target_x = 0
-        self.ray_length = 5
+        self.ray_length = 4
+        self.life = 1
         self.relative_position = (0, 0)
         self.target_y = 0
         self.rays = [self.ray_length]*self.n_rays
         self.binary_rays = [0]*self.n_rays
+        self.explored_rays = [0]*self.n_rays
         self.rays_index = 4
         self.binary_rays_index = self.rays_index + self.n_rays
         self.mouse_control = False
         self.lander_color = (51, 51, 204)
         self.stagnation_streak = 0
         self.reactor_length = 1
-        self.damping_factor = 0.5
+        self.linear_damping_factor = 0.97
+        self.angular_damping_factor = 0.97
+        self.last_binary_rays = self.binary_rays
+        self.unexplored_angle = 0
+        self.exploration_state = True
 
         self.cell_size = (self.window_height/self.grid_size[1], self.window_width/self.grid_size[0])
         self.grid = np.array([[0] * self.grid_size[0] for _ in range(self.grid_size[1])])
@@ -152,7 +157,9 @@ class CustomLunarLander(gym.Env):
 
         self.scale_ratio = 20
 
-        self.norms = {"velocity":None, "angle":None, "distance":None}
+        self.norms = {"exploration":MinMaxScaler(0, 1, min_init=0), "distance":MinMaxScaler(0, 1)}
+        self.step_diffs = {"exploration":0, "distance":0}
+        self.last_step = {"exploration":0, "distance":0}
 
         self.unexplored_color = (100, 100, 100, 128)
         self.grid_color = (200, 200, 200)
@@ -193,7 +200,7 @@ class CustomLunarLander(gym.Env):
             cross_size = 5  # Taille de la croix en pixels
 
             for i in range(self.n_rays):
-                angle = i * angle_increment
+                angle = self.get_angle() + i * angle_increment
                 corner_offset = self.calculate_corner_offset(angle)
                 # Calculez la position de départ du rayon avec le décalage pour partir du coin du lander
                 ray_start_box2d = np.array([self.get_x() + corner_offset[0], self.get_y() + corner_offset[1]])
@@ -243,9 +250,7 @@ class CustomLunarLander(gym.Env):
     def create_world_edges(self):
         half_width_m = (self.window_width / 2) / self.scale_ratio  # Moitié de la largeur en mètres
         window_height_m = self.window_height / self.scale_ratio  # Hauteur en mètres
-        # Crée un corps statique dans le monde pour les bords
         ground_body = self.world.CreateStaticBody(position=(0, 0))
-        # Bord inférieur (étendu horizontalement de gauche à droite depuis le centre)
         fixture = ground_body.CreateEdgeFixture(vertices=[(-half_width_m, 0), (half_width_m, 0)])
         fixture.userData = {"type":"edge"}
         fixture = ground_body.CreateEdgeFixture(vertices=[(-half_width_m, 0), (-half_width_m, window_height_m)])
@@ -260,7 +265,7 @@ class CustomLunarLander(gym.Env):
             angle_increment = (2 * np.pi) / self.n_rays
 
             for i in range(self.n_rays):
-                angle = i * angle_increment
+                angle = self.get_angle() + i * angle_increment
                 corner_offset = self.calculate_corner_offset(angle)
                 ray_start = Box2D.b2Vec2(self.get_x() + corner_offset[0], self.get_y() + corner_offset[1])
                 direction = Box2D.b2Vec2(np.cos(angle), np.sin(angle))
@@ -292,16 +297,79 @@ class CustomLunarLander(gym.Env):
                     if 0 <= grid_x < self.grid_size[0] and 0 <= grid_y < self.grid_size[1]:
                         self.grid[grid_y][grid_x] = 1
 
+                #Next step for exploration rays
+                next_step = steps + 1
+                point = ray_start + direction * (next_step * (self.grid_min_cell_size / self.scale_ratio))
+                grid_x = int((point.x * self.scale_ratio + self.window_width / 2) / self.cell_size[1])
+                grid_y = int((self.window_height - point.y * self.scale_ratio) / self.cell_size[0])
+
+                if 0 <= grid_x < self.grid_size[0] and 0 <= grid_y < self.grid_size[1] and next_step <= fixture_distance:
+                    if self.grid[grid_y][grid_x] == 0:
+                        self.explored_rays[i] = 0
+                    else:
+                        self.explored_rays[i] = 1
+                else:
+                    self.explored_rays[i] = 1
+
                 distance = (callback.point - ray_start).length if callback.fixture else self.ray_length
                 self.rays[i] = distance
                 if callback.fixture:
                     if callback.fixture.userData and callback.fixture.userData["type"] == "target":
                         self.binary_rays[i] = 1
+                        self.exploration_state = False
                     else:
                         self.binary_rays[i] = -1
                 else:
                     self.binary_rays[i] = 0
     
+    def find_central_zero_index(self, lst):
+        if 0 in lst:
+            n = len(lst)
+            max_len, max_index, current_len, start_index = 0, 0.0, 0, -1
+            extended_lst = lst + lst  # Dupliquer la liste pour gérer la circularité
+
+            for i, value in enumerate(extended_lst):
+                if value == 0:
+                    if current_len == 0:  # Début d'une nouvelle séquence de 0
+                        start_index = i
+                    current_len += 1
+                else:
+                    if current_len > max_len:
+                        max_len = current_len
+                        if current_len % 2 == 0:  # Longueur paire
+                            max_index = start_index + current_len // 2 - 0.5
+                        else:  # Longueur impaire
+                            max_index = start_index + current_len // 2
+                    current_len = 0
+
+            # Vérifier la dernière séquence si elle se termine par un 0
+            if current_len > max_len:
+                if current_len % 2 == 0:  # Longueur paire
+                    max_index = start_index + current_len // 2 - 0.5
+                else:  # Longueur impaire
+                    max_index = start_index + current_len // 2
+
+            # Gérer le cas où la séquence maximale est à cheval sur la fin et le début de la liste
+            if max_index >= n:
+                max_index -= n
+
+            return max_index
+        else:
+            return None
+
+    def modpi(self, x):
+        return (x + np.pi) % (2 * np.pi) - np.pi
+
+    def update_unexplored_angle(self):
+        if self.distance_to_target() <= self.ray_length:
+            self.unexplored_angle = self.modpi(np.arctan2(self.get_y_offset(), self.get_x_offset()) + np.pi/2)
+            self.target_in_range = 1
+        else:
+            self.target_in_range = 0
+            central_zero = self.find_central_zero_index(self.explored_rays)
+            if central_zero != None:
+                self.unexplored_angle = self.modpi(((2 * np.pi) / self.n_rays) * central_zero + self.get_angle()) - np.pi/2
+
     def get_right_corner(self):
         offset_y = self.lander_height/2 * np.cos(self.lander.angle)
         offset_x = - self.lander_height/2 * np.sin(self.lander.angle)
@@ -384,12 +452,21 @@ class CustomLunarLander(gym.Env):
 
             pygame.draw.line(self.screen, (255, 0, 0), self.box2d_to_pygame_vect((start_x, start_y)), self.box2d_to_pygame_vect((end_x, end_y)), self.reactor_width)
         
-        #self.draw_grid()
+        self.draw_grid()
         self.draw_rays()
+        self.draw_unexplored_angle()
                 
         pygame.display.flip()
         self.clock.tick(60)
 
+    def get_position(self):
+        return self.lander.position
+
+    def draw_unexplored_angle(self):
+        x, y = self.get_position()
+        end_x = x - self.ray_length * np.sin(self.unexplored_angle)
+        end_y = y + self.ray_length * np.cos(self.unexplored_angle)
+        pygame.draw.line(self.screen, (255, 0, 0), self.box2d_to_pygame_vect((x, y)), self.box2d_to_pygame_vect((end_x, end_y)), self.reactor_width)
 
     # Fonction pour convertir les coordonnées Box2D en coordonnées Pygame
     def box2d_to_pygame(self, x, y):
@@ -397,17 +474,16 @@ class CustomLunarLander(gym.Env):
 
     def create_target(self):
         # Création du corps statique pour le rectangle
-        target_body_def = Box2D.b2BodyDef()
-        target_body_def.position = b2Vec2(self.target_x, self.target_y)
-        target_body_def.type = b2_staticBody
-        self.target_body = self.world.CreateBody(target_body_def)
-        
+
+        self.target_body = self.world.CreateDynamicBody(position=b2Vec2(self.target_x, self.target_y))
+        self.target_body.fixedRotation = False
         # Définition de la forme du rectangle
-        target_shape = b2PolygonShape(box=(self.target_length / 2, self.target_height))
-        
+        target_shape = b2PolygonShape(box=(self.target_length, self.target_height))
+
         # Création de la fixture
         target_fixture_def = b2FixtureDef(shape=target_shape)
-        fixture = self.target_body.CreateFixture(target_fixture_def)
+        target_fixture_def.density = 0.5
+        fixture = self.target_body.CreateFixture(target_fixture_def, friction=1)
         fixture.userData = {"type": "target"}        
 
     def reset(self, **kwargs):
@@ -420,42 +496,46 @@ class CustomLunarLander(gym.Env):
             self.target_body = None
 
         # Variabilité dans la position et l'angle initiaux
-        initial_x = np.random.uniform(-0.75, 0.75) * self.window_width/2/self.scale_ratio
-        initial_y = np.random.uniform(0.75, 0.95) * self.window_height/self.scale_ratio
+        initial_x = np.random.uniform(-0.9, -0.4) * self.window_width/2/self.scale_ratio
+        initial_y = np.random.uniform(0.1, 0.9) * self.window_height/self.scale_ratio
 
-        self.target_x = np.random.uniform(-0.75, 0.75) * self.window_width/2/self.scale_ratio
-        self.target_y = np.random.uniform(0.1, 0.2) * self.window_height/self.scale_ratio
+        self.target_x = np.random.uniform(0.4, 0.9) * self.window_width/2/self.scale_ratio
+        self.target_y = np.random.uniform(0.1, 0.9) * self.window_height/self.scale_ratio
         self.create_target()
 
         initial_angle = np.random.uniform(-np.pi, np.pi)
         
         self.lander = self.world.CreateDynamicBody(position=(initial_x, initial_y), angle=initial_angle)
-        fixture = self.lander.CreatePolygonFixture(box=(self.lander_width/2, self.lander_height/2), density=1/(self.lander_width * self.lander_height), friction=0.3)
+        fixture = self.lander.CreatePolygonFixture(box=(self.lander_width/2, self.lander_height/2), density=1/(self.lander_width * self.lander_height), friction=1)
 
-        fixture.userData = {"type": "lander"}   
+        fixture.userData = {"type": "lander"}
         self.lander.on_target = False
         self.lander.on_edge = False
         self.lander.collision_speed = (10, 10)
-
+        self.life = 1
         # Création de l'écouteur de contact
         contact_listener = LanderContactListener(self.lander, self.target_body)
         # Attacher l'écouteur au monde Box2D
         self.world.contactListener = contact_listener
 
-        self.norms = {"velocity":MinMaxScaler(0, 1, min_init=0), "angle":MinMaxScaler(0, 1, min_init=0, max_init=np.pi), "distance":MinMaxScaler(0, 1, min_init=0)}
+        self.norms = {"exploration":MinMaxScaler(0, 1, min_init=0), "distance":MinMaxScaler(0, 1)}
+        self.step_diffs = {"exploration":0, "distance":0}
+        self.last_step = {"exploration":0, "distance":0}
+
         self.timesteps = 0
         self.last_action = 0
         self.stagnation_streak = 0
-        self.last_rewards = {"distance":0, "step":0, "total":0, "exploration":0}
+        self.last_rewards = {"distance":0, "step":0, "total":0, "exploration":0, "binary_rays":0}
         self.rays = [self.ray_length]*self.n_rays
         self.binary_rays = [0]*self.n_rays
         self.grid = np.array([[0] * self.grid_size[0] for _ in range(self.grid_size[1])])
-        self.state = np.array([0.0, 0.0, self.lander.angle, 0.0] + self.rays + self.binary_rays + [-1, -1], dtype=np.float32)
+        self.target_in_range = 0
+        self.exploration = 1
+        self.in_target_range = 0
+        #self.state = np.array([0.0, 0.0, self.lander.angle, 0.0] + self.binary_rays + self.explored_rays + [self.unexplored_angle] + [int(self.lander.on_target), int(self.lander.on_edge)] + [self.target_in_range], dtype=np.float32)
+        self.state = np.array([0.0, 0.0, 0.0] + self.rays + self.binary_rays + [self.life] + [self.exploration] + [0, 0], dtype=np.float32)
 
         return self.state, {}
-
-    def get_exploration(self):
-        return (f"Exploration : {(100*env.last_rewards['exploration']/(env.grid_size[0]*env.grid_size[1])):.2f} %")
     
     def calculate_distances_to_walls(self):
 
@@ -501,15 +581,26 @@ class CustomLunarLander(gym.Env):
     def get_angle(self):
         return self.state[self.th_index]
 
-    def update_norms(self):
-        
-        th = self.get_angle()
-        d = self.distance_to_target()
-        v = self.get_speed()
+    def get_exploration(self):
+        return np.sum(self.grid)
 
-        self.norms["angle"].update(abs(th))
-        self.norms["velocity"].update(v)
-        self.norms["distance"].update(d)
+    def update_diffs(self):
+
+        current_exploration = self.get_exploration()
+
+        self.step_diffs["exploration"] = current_exploration - self.last_step["exploration"]
+        self.last_step["exploration"] = current_exploration
+
+        current_distance = self.distance_to_target()
+
+        self.step_diffs["distance"] = self.last_step["distance"] - current_distance
+        self.last_step["distance"] = current_distance
+
+    def update_norms(self):
+        self.norms["exploration"].update(self.step_diffs["exploration"])
+
+        if self.target_in_range:
+            self.norms["distance"].update(self.step_diffs["distance"])
 
     def get_x(self):
         return self.lander.position.x
@@ -523,7 +614,7 @@ class CustomLunarLander(gym.Env):
 
     def get_y_offset(self):
         y = self.get_y()
-        return (y - self.lander_height/2) - (self.target_y + self.target_height/2)
+        return (y - self.lander_height/2) - (self.target_y - self.target_height/2)
 
     def distance_to_target(self):
         return (((self.get_x_offset())**2) + (self.get_y_offset())**2)**0.5
@@ -538,12 +629,8 @@ class CustomLunarLander(gym.Env):
         th = self.get_angle()
         v = self.get_speed()
         d = self.distance_to_target()
-        print(f'Action: {self.last_action}, Reward: {self.last_rewards}, (X, Y) : ({x:.2f}, {y:.2f}), V : {self.norms["velocity"].normalize(v):.4f}, D : {self.norms["distance"].normalize(d):.2f}, Th : {self.norms["angle"].normalize(abs(th)):.2f}, "Exp" : {100*env.last_rewards["exploration"]/(env.grid_size[0]*env.grid_size[1]):.2f}')
-
-    def on_platform(self):
-        x = self.get_x()
-        y = self.get_y()
-        return self.lander.on_target and y >= self.target_y + self.target_height/2
+        exp = 100*self.get_exploration()/(env.grid_size[0]*env.grid_size[1])
+        print(f'Action: {self.last_action}, (X, Y) : ({x:.2f}, {y:.2f}), V : {v:.4f}, D : {d:.2f}, Th : {th:.2f}, "Exp" : {exp:.2f}')
 
     def landing_speed(self):
         vx = self.lander.collision_speed[0]
@@ -551,16 +638,12 @@ class CustomLunarLander(gym.Env):
         return (vx**2 + vy**2)**0.5 <= 3
 
     def apply_damping(self):
-        # Application du damping pour réduire la vitesse angulaire
-        if self.lander.angularVelocity != 0:
-            damping_torque = -self.damping_factor * self.lander.angularVelocity
-            self.lander.ApplyTorque(damping_torque, True)
         
-        # Damping vitesse linéaire
-        if self.mouse and self.mouse_control:
-            velocity = self.get_v()
-            damping_force = -0.25 * velocity * velocity.length - 0.8 * velocity
-            self.lander.ApplyForceToCenter(damping_force, True)
+        self.lander.angularVelocity *= self.angular_damping_factor
+        self.target_body.angularVelocity *= self.angular_damping_factor
+        
+        self.target_body.linearVelocity *= self.linear_damping_factor
+        self.lander.linearVelocity *= self.linear_damping_factor
 
     def step(self, action):
         if not self.lander:
@@ -586,52 +669,71 @@ class CustomLunarLander(gym.Env):
         self.last_action = action
         self.world.Step(1.0/30.0, 4, 2)
 
+        #self.lander.angle = self.modpi(self.lander.angle)
+
         velocity = self.get_v()
         angle = self.lander.angle
         angular_velocity = self.lander.angularVelocity
 
         self.update_rays()
+        self.update_unexplored_angle()
 
         walls_distance = self.calculate_distances_to_walls()
 
-        offsets = [self.get_x_offset(), self.get_y_offset()]
+        offsets = [0, 0]
 
-        state = np.array([velocity.x, velocity.y, angle, angular_velocity] + self.rays + self.binary_rays + offsets, dtype=np.float32)
+        if self.distance_to_target() <= self.ray_length:
+            offsets = [self.get_x_offset(), self.get_y_offset()]
+            self.in_target_range = 1
+        else:
+            self.in_target_range = 0
+
+        #state = np.array([velocity.x, velocity.y, angle, angular_velocity] + self.rays + self.binary_rays + self.explored_rays + [self.unexplored_angle] + [int(self.lander.on_target), int(self.lander.on_edge)] + [self.target_in_range], dtype=np.float32)
+        state = np.array([velocity.x, velocity.y, angular_velocity] + self.rays + self.binary_rays + [self.life] + [self.get_exploration()/(self.grid_size[0]*self.grid_size[1])] + offsets, dtype=np.float32)
         self.state = state
-
-        self.update_norms()
+        
+        
+        self.update_diffs()
+        
+        if self.timesteps >= 1:
+            self.update_norms()
 
         reward = self.running_reward_system()
 
+        if action != 0:
+            reward += -0.01
+        
         done = False
 
-        if self.lander.on_edge or self.lander.on_target:
+        if self.lander.on_target:
             done = True
             reward += self.end_reward_system()
+        
+        if self.lander.on_edge:
+            self.life += -0.2
+            reward += -10
+
+        if self.life <= 0:
+            done = True
+            reward += -100
+            print("CRASH", 100*self.get_exploration()/(env.grid_size[0]*env.grid_size[1]), "%")
 
         truncated = False
         
-        
         if self.timesteps >= self.timeout:
-            #print("Timeout : ", position.x, position.y, abs(velocity.x), abs(velocity.y))
-            print("TIMEOUT", self.get_exploration())
-            reward += -5 #+ 25 * self.last_rewards["exploration"]/(self.grid_size[0] * self.grid_size[1])
+            print("TIMEOUT", 100*self.get_exploration()/(env.grid_size[0]*env.grid_size[1]), "%", (10*(self.get_exploration()/(env.grid_size[0]*env.grid_size[1]) - 1)))
+            reward += -100 #(10*(self.get_exploration()/(env.grid_size[0]*env.grid_size[1]) - 1))
             truncated = True
             done = True
         else:
             truncated = False
-        
-        
-        action_reward = 0
-
-        if action != 0:
-            action_reward += -0.1
-
-        self.timesteps += 1
-
-        #reward += action_reward
 
         self.last_rewards["total"] = reward
+        self.last_binary_rays = self.binary_rays
+        self.timesteps += 1
+
+        #print("exp diff rew : ", reward)
+
 
         return state, reward, done, truncated, {}
 
@@ -642,7 +744,7 @@ class CustomLunarLander(gym.Env):
         return self.binary_rays
 
     def running_reward_system(self):
-
+        """
         th = self.get_angle()
         v = self.get_speed()
         d = self.distance_to_target()
@@ -661,7 +763,8 @@ class CustomLunarLander(gym.Env):
         #print(position_reward, velocity_reward, angle_reward)
 
         touched_rays = self.get_rays()
-
+        binary_rays_reward = 0
+        rays_reward = 0
         
         if self.n_rays > 0:
             binary_rays_reward = -sum(self.get_binary_rays())/self.n_rays
@@ -670,39 +773,38 @@ class CustomLunarLander(gym.Env):
         distance_diff_reward = (position_reward - self.last_rewards["distance"])
 
         grid_sum = np.sum(self.grid)
-        exploration_diff_reward = (grid_sum - self.last_rewards["exploration"])/(self.grid_size[0] * self.grid_size[1])
+        exploration_diff_reward = (grid_sum - self.last_rewards["exploration"])#/(self.grid_size[0] * self.grid_size[1])
+        """
 
         stagnation_reward = 0
-        binary_exploration_reward = 0
+        reward = 0
 
-        if exploration_diff_reward == 0:
+        if self.step_diffs["exploration"] == 0:
             self.stagnation_streak += 1
         else:
             self.stagnation_streak = 0
-            binary_exploration_reward += 1
         
         if self.stagnation_streak >= 5:
-            #stagnation_reward += -0.1
-            self.stagnation_streak = 0
+            reward += -0.2
 
-        self.last_rewards["distance"] = position_reward
-        self.last_rewards["step"] = distance_diff_reward
-        self.last_rewards["exploration"] = grid_sum
-        return distance_diff_reward*10
+        reward += self.norms["exploration"].normalize(self.step_diffs["exploration"])
+
+        """
+        if self.exploration_state:
+            reward += self.norms["exploration"].normalize(self.step_diffs["exploration"])
+        else:
+            if self.in_target_range == 1:
+                reward += self.norms["distance"].normalize(self.step_diffs["distance"]) + stagnation_reward
+            else:
+                reward += stagnation_reward"""
+        return reward
 
     def end_reward_system(self):
 
         reward = 0
         
-        if self.on_platform() and self.landing_speed():
-            reward += 25
-            print("GGGGGGGGGGGGGGG", self.get_exploration())
-        else:
-            if self.lander.on_target:
-                reward += -20
-            else:
-                reward += -20
-            print("CRASH", self.get_exploration())
+        print("GGGGGGGGGGGGG Exp : ", 100*self.get_exploration()/(self.grid_size[0] * self.grid_size[1]), "%")
+        reward += 100# + 100*self.last_rewards["exploration"]/(self.grid_size[0] * self.grid_size[1])
 
         return reward
 
@@ -730,34 +832,28 @@ class CustomLunarLander(gym.Env):
             force = force_direction * strength
             self.lander.ApplyForce(force, self.lander.worldCenter, True)
 
-""" 
+
+
 models_dir = "./models/"
-model_name = "LLCustom"
+model_name = "LECustom"
 
 import time
 use_last_trained = False
 
-env = CustomLunarLander()
+env = CustomExplorer()
 
 env.reset()
 
 if use_last_trained:
-    model = PPO.load(models_dir  + model_name)
+    model = PPO.load(models_dir + model_name)
 else:
-    model = PPO("MlpPolicy", env, verbose=2)
-
-    #model = DQN('MlpPolicy', env, learning_rate=1e-3, verbose=2)
-    # Créer une instance de callback pour le rendu toutes les 1000 étapes
-    #render_callback = RenderCallback(render_freq=1000)
-
-    # Entraîner le modèle avec le callback
-    model.learn(total_timesteps=500000)
-
+    model = PPO("MlpPolicy", env, verbose=2, tensorboard_log = './tensorboard_log')
+    model.learn(total_timesteps=150000, tb_log_name = "PPO")
     model.save(models_dir + model_name)
 
 while True:
     print("START")
-    env = CustomLunarLander()
+    env = CustomExplorer()
     observation, _info = env.reset()  # Capturez l'observation et ignorez le dictionnaire info
     timesteps = 0
     done = False
@@ -765,30 +861,35 @@ while True:
         #env.print_rays()
         #print([round(num, 2) for num in env.rewards], round(sum(env.rewards), 2))
         env.print_state()
+        #print(env.last_rewards["total"])
         action, _states = model.predict(observation, deterministic=True) 
         observation, reward, done, truncated, info = env.step(action)  # Appliquer l'action
         env.render()
         # Assurez-vous que l'indice d'observation que vous essayez d'imprimer existe
         timesteps+=1
-    time.sleep(1)
     env.print_state()
+    time.sleep(1)
     
 env.close()
 
 """
 
-env = CustomLunarLander()
+env = CustomExplorer()
 
 obs = env.reset()
+env.timeout = np.inf
 env.mouse_control = True
 env.render()
 
 done = False
 while not done:
-    #env.print_binary_rays()
+    #print(env.explored_rays)
     #env.print_state()
     #print(np.array(env.grid))
     #print(env.last_rewards['exploration']/(env.grid_size[0] * env.grid_size[1]))
+    #print(env.explored_rays, env.find_central_zero_index(env.explored_rays), env.unexplored_angle)
+    #print(env.norms["distance"].normalize(env.last_step["distance"]))
+    print(env.unexplored_angle)
     env.render()
     keys = pygame.key.get_pressed()
     action = 0
@@ -808,7 +909,4 @@ while not done:
     pygame.event.pump()
 
 env.close()
-    
-
-
-
+"""
