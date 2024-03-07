@@ -14,13 +14,13 @@ class RenderCallback(BaseCallback):
     
 env = gym.make("LunarLander-v2")
 observation, info = env.reset(seed=42)
-#model = PPO("MlpPolicy", env, verbose=2)
-model = DQN('MlpPolicy', env, learning_rate=1e-3, verbose=1)
+model = PPO("MlpPolicy", env, verbose=2)
+#model = DQN('MlpPolicy', env, learning_rate=1e-3, verbose=1)
 # Créer une instance de callback pour le rendu toutes les 1000 étapes
 render_callback = RenderCallback(render_freq=1000)
 
 # Entraîner le modèle avec le callback
-model.learn(total_timesteps=50000, callback=render_callback)
+model.learn(total_timesteps=200000, callback=render_callback)
 
 model.save('500KLLV2')
 

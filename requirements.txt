@@ -1,0 +1,5 @@
+box2d
+gymnasium
+stable-baselines3
+pygame
+numpy

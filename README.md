@@ -22,18 +22,26 @@ Développement et entraînement d'un modèle dans un environnement personnalisé
 
 ## Projets/Fichiers
 
-### `Cartpole.py` 
+### 0 - Lunar Lander V2
+- Environement LunarLander-v2 de gym.
+- Objectif : comprendre comment entrainer un modèle avant de coder l'environement soi-même.
+
+### 1 - CartPole 
 - Environement custom reproduisant l'environement CartPole-v1 de gym.
 - Objectif : bouger de droite à gauche pour ne par faire tomber la barre
 
-### `CustomLander.py` 
-- Environement custom reproduisant l'environement LunarLander-v2 de gym.
+### 2 - Custom Lander 
+- Environement custom inspiré de l'environement LunarLander-v2 de gym.
 - Objectif : Aterrir proprement sur une plateforme positionnée aléatoirement avec un moteur central et deux moteurs latéraux.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/GRDimm/RLStart/main/images/CustomLander.gif" width="80%" height="80%" />
 </p>
 
-### `CustomExplorer.py` 
-- Environement custom.
-- Objectif : Cartographier la map, rewards d'exploration. 
+### 3 - Custom Explorer
+- Environement custom tiré de Custom Lander.
+- Objectif : Explorer la map, rewards d'exploration et de découverte de l'objectif. 
+
+## Installation
+- Environement Anaconda, Python >= 3.8
+- Installer les modules de `requirements.txt`
