@@ -22,11 +22,11 @@ Development and training of a model in a custom Lunar Lander environment, aiming
 
 ## Projects/Files
 
-### `Cartpole.py` 
+### 1 - CartPole (`Cartpole.py`)
 - Custom environment replicating the CartPole-v1 environment from gym.
 - Objective: Move left and right to prevent the bar from falling
 
-### `CustomLander.py` 
+### 2 - Custom Lander (`CustomLander.py`)
 - Custom environment replicating the LunarLander-v2 environment from gym.
 - Objective: Land cleanly on a randomly positioned platform with a central engine and two side engines.
 
@@ -34,6 +34,6 @@ Development and training of a model in a custom Lunar Lander environment, aiming
   <img src="https://raw.githubusercontent.com/GRDimm/RLStart/main/images/CustomLander.gif" width="80%" height="80%" />
 </p>
 
-### `CustomExplorer.py` 
+### 3 - Custom Explorer (`CustomExplorer.py`) (Still in dev)
 - Custom environment.
 - Objective: Map the area, exploration rewards.
