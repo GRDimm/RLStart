@@ -1,47 +1,39 @@
 # RLStart
 
-## Repository de Projets de Reinforcement Learning
+## Reinforcement Learning Projects Repository
 
-Ce repository contient des petits projets de reinforcement learning que je développe seul pour apprendre et explorer différentes techniques et algorithmes dans le domaine.
+This repository contains small reinforcement learning projects that I develop alone to learn and explore different techniques and algorithms in the field.
 
-## Bibliothèques Utilisées
-- `gymnasium`: Pour la création et la manipulation d'environnements de reinforcement learning.
-- `stable_baselines3`: Une bibliothèque offrant des implémentations de qualité de divers algorithmes de reinforcement learning.
-- `box2d`: Utilisé pour certains environnements nécessitant la physique, comme le Lunar Lander.
+## Libraries Used
+- `gymnasium`: For creating and manipulating reinforcement learning environments.
+- `stable_baselines3`: A library offering quality implementations of various reinforcement learning algorithms.
+- `box2d`: Used for certain environments requiring physics, such as Lunar Lander.
 
-## Notions
+## Concepts
 
-### Utilisation de PPO
-Implémentation de l'algorithme Proximal Policy Optimization (PPO) sur différents environnements Gymnasium.
+### Using PPO
+Implementation of the Proximal Policy Optimization (PPO) algorithm on different Gymnasium environments.
 
-### Utilisation de DQN
-Mise en œuvre de Deep Q-Network (DQN) pour apprendre des stratégies optimales dans des environnements classiques.
+### Using DQN
+Implementation of Deep Q-Network (DQN) to learn optimal strategies in classic environments.
 
-### Création d'un environnement custom de Lunar Lander
-Développement et entraînement d'un modèle dans un environnement personnalisé de Lunar Lander, visant à tester et améliorer les compétences de conception d'environnements.
+### Creating a custom Lunar Lander environment
+Development and training of a model in a custom Lunar Lander environment, aiming to test and improve environment design skills.
 
-## Projets/Fichiers
+## Projects/Files
 
-### 0 - Lunar Lander V2
-- Environement LunarLander-v2 de gym.
-- Objectif : comprendre comment entrainer un modèle avant de coder l'environement soi-même.
+### `Cartpole.py` 
+- Custom environment replicating the CartPole-v1 environment from gym.
+- Objective: Move left and right to prevent the bar from falling
 
-### 1 - CartPole 
-- Environement custom reproduisant l'environement CartPole-v1 de gym.
-- Objectif : bouger de droite à gauche pour ne par faire tomber la barre
-
-### 2 - Custom Lander 
-- Environement custom inspiré de l'environement LunarLander-v2 de gym.
-- Objectif : Aterrir proprement sur une plateforme positionnée aléatoirement avec un moteur central et deux moteurs latéraux.
+### `CustomLander.py` 
+- Custom environment replicating the LunarLander-v2 environment from gym.
+- Objective: Land cleanly on a randomly positioned platform with a central engine and two side engines.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/GRDimm/RLStart/main/images/CustomLander.gif" width="80%" height="80%" />
 </p>
 
-### 3 - Custom Explorer
-- Environement custom tiré de Custom Lander.
-- Objectif : Explorer la map, rewards d'exploration et de découverte de l'objectif. 
-
-## Installation
-- Environement Anaconda, Python >= 3.8
-- Installer les modules de `requirements.txt`
+### `CustomExplorer.py` 
+- Custom environment.
+- Objective: Map the area, exploration rewards.
