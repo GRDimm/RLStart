@@ -2,10 +2,7 @@ import gymnasium as gym
 from gymnasium import spaces
 from stable_baselines3 import PPO
 import numpy as np
-from stable_baselines3.common.logger import configure
 import random
-
-logger = configure(folder="./logs", format_strings=["stdout", "log"])
 
 class CustomExplorer(gym.Env):
     metadata = {'render.modes': ['human']}
@@ -93,8 +90,8 @@ env.reset()
 if use_last_trained:
     model = PPO.load(models_dir + model_name)
 else:
-    model = PPO("MlpPolicy", env, verbose=2, tensorboard_log = './tensorboard_log')
-    model.learn(total_timesteps=150000, tb_log_name = "PPO")
+    model = PPO("MlpPolicy", env, verbose=2)
+    model.learn(total_timesteps=150000)
     model.save(models_dir + model_name)
 
 print_strategy(model)
