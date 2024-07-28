@@ -34,6 +34,30 @@ Development and training of a model in a custom Lunar Lander environment, aiming
   <img src="https://raw.githubusercontent.com/GRDimm/RLStart/main/images/CustomLander.gif" width="80%" height="80%" />
 </p>
 
-### 3 - Custom Explorer (`CustomExplorer.py`) (Still in dev)
+### 3 - Custom Explorer (`CustomExplorer.py`) (Still in dev, not working)
 - Custom environment.
 - Objective: Map the area, exploration rewards.
+
+### 4 - Dice strategy (`DiceStrategy.py`) (In dev)
+- Custom environment.
+- Objective: Find the best strategy in a dice rolling game.
+- Game : You have a 10-faced dice, numbered from 1 to 10. Each time you throw the dice you have the option to exercise the right to receive an amount in dollars equal to the top face value, but exercising this right costs 5 dollars. If you don't exercise, then you can continue to roll the dice as many times as the subquestion allows you.
+- Results : 
+
+#### Model Strategy and Expected Reward
+
+#### Strategy
+- **For 10 rounds left**, the model exercises if the dice value >= 10
+- **For 9 rounds left**, the model exercises if the dice value >= 10
+- **For 8 rounds left**, the model exercises if the dice value >= 9
+- **For 7 rounds left**, the model exercises if the dice value >= 9
+- **For 6 rounds left**, the model exercises if the dice value >= 9
+- **For 5 rounds left**, the model exercises if the dice value >= 9
+- **For 4 rounds left**, the model exercises if the dice value >= 9
+- **For 3 rounds left**, the model exercises if the dice value >= 8
+- **For 2 rounds left**, the model exercises if the dice value >= 8
+- **For 1 round left**, the model exercises if the dice value >= 6
+- **For 0 rounds left**, the model exercises if the dice value >= 5
+
+#### Expected Reward
+Expected reward with the strategy: **4.1495**
