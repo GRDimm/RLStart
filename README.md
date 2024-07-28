@@ -38,10 +38,10 @@ Development and training of a model in a custom Lunar Lander environment, aiming
 - Custom environment.
 - Objective: Map the area, exploration rewards.
 
-### 4 - Dice strategy (`DiceStrategy.py`) (In dev)
+### 4 - Dice strategy (`DiceStrategy.py`)
 - Custom environment.
 - Objective: Find the best strategy in a dice rolling game.
-- Game : You have a 10-faced dice, numbered from 1 to 10. Each time you throw the dice you have the option to exercise the right to receive an amount in dollars equal to the top face value, but exercising this right costs 5 dollars. If you don't exercise, then you can continue to roll the dice as many times as the subquestion allows you.
+- Game : You have a 10-faced dice, numbered from 1 to 10. Each time you throw the dice you have the option to exercise the right to receive an amount in dollars equal to the top face value, but exercising this right costs 5 dollars. If you don't exercise, then you can continue to roll the dice as many times as the subquestion allows you. int he end, you can exercise 0 times and you will pay 0 and get 0.
 - Results : 
 
 #### Model Strategy and Expected Reward
