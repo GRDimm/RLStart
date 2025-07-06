@@ -61,3 +61,34 @@ Development and training of a model in a custom Lunar Lander environment, aiming
 
 #### Expected Reward
 Expected reward with the strategy: **4.1495**
+
+### 8 - RL Algos from scratch
+- Trying to code from scratch the different RL algorithms explained in [Deepmind's course](https://www.youtube.com/playlist?list=PLqYmG7hTraZDVH599EItlEWsUOsJbAodm).
+
+#### Implemented so far
+##### Greedy
+
+- Select the action with the best past average reward.
+
+- Example with 3 dimensional action space.
+<p align="center">
+  <img src="https://raw.githubusercontent.com/GRDimm/RLStart/main/8 - RL Algos from scratch/images/greedy_reward_distributions.png" width="80%" height="80%" />
+</p>
+
+- Greedy's output (highlight's Greedy's issue, it doesn't explore).
+
+| Action | Average Reward |
+|--------|----------------|
+| 0      | 7.1773         |
+| 1      | 0.0            |
+| 2      | 0.0            |
+
+##### Epsilon-Greedy
+
+- Greedy but add an exploration probability of epsilon. Each step, select a random action with probability epsilon else pick the greedy action.
+
+#### Next on the list
+- Policy gradient
+- UCB
+
+
