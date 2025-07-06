@@ -46,7 +46,7 @@ class NArmedBanditEnvironment(FiniteActionSpaceEnvironment):
         plt.suptitle("Reward Distributions for Each Action", fontsize=16)
         # Plot the distributions
         for i in range(self.actions_dimension):
-            plt.hist([self.action_reward(i) for _ in range(10000)], bins=50, alpha=0.4, label=f"Action {i}")
+            plt.hist([self.action_reward(i) for _ in range(10000)], bins=100, alpha=0.3, label=f"Action {i}")
         plt.xlabel("Reward value")
         plt.ylabel("Frequency")
         plt.legend()

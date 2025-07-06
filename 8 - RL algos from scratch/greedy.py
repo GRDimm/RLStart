@@ -41,21 +41,12 @@ class Greedy:
         print(f"Step: {self.step}, Average Rewards: {self.action_average_reward}")
 
 if __name__ == "__main__":
-    # Example usage
     n_arms = 3
-    reward_distributions = []
     random.seed(42)  # For reproducibility
-
-    for i in range(n_arms):
-        # Create a random Gaussian distribution for each arm
-        # Mean is between -5 and 5, standard deviation is between 0 and 5
-        mean = random.uniform(-25, 25)
-        stddev = random.uniform(3, 20)
-        reward_distributions.append(lambda m=mean, s=stddev: random.gauss(m, s))
-
+    reward_distributions = [lambda: random.gauss(0, 2), lambda: random.gauss(5, 0.5), lambda: random.gauss(10, 8)]
     env = NArmedBanditEnvironment(actions_dimension=n_arms, reward_distributions=reward_distributions)
     agent = Greedy(environment=env)
 
-    agent.train(n_steps=100, render=True)
+    agent.train(n_steps=1000, render=True)
     print("Training completed.")
     print("Average rewards:", agent.action_average_reward)
