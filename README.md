@@ -31,7 +31,7 @@ Development and training of a model in a custom Lunar Lander environment, aiming
 - Objective: Land cleanly on a randomly positioned platform with a central engine and two side engines.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/GRDimm/RLStart/main/images/CustomLander.gif" width="80%" height="80%" />
+  <img src="https://raw.githubusercontent.com/GRDimm/RLStart/main/images/CustomLander.gif" width="80%"/>
 </p>
 
 ### 3 - Custom Explorer (`CustomExplorer.py`) (Still in dev, not working)
@@ -71,7 +71,7 @@ Expected reward with the strategy: **4.1495**
 
 - Example with 3 dimensional action space.
 <p align="center">
-  <img src="https://github.com/GRDimm/RLStart/blob/main/8%20-%20RL%20algos%20from%20scratch/images/greedy_reward_distributions.png" width="80%" height="80%" />
+  <img src="https://github.com/GRDimm/RLStart/blob/main/8%20-%20RL%20algos%20from%20scratch/images/greedy_reward_distributions.png" width="80%"/>
 </p>
 
 - Greedy's output (highlight's Greedy's issue, it doesn't explore).
