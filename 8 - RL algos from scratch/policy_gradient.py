@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import random
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional
 import numpy as np
 
 from utils.utils import NArmedBanditEnvironment
@@ -11,6 +11,8 @@ class BasePolicy(ABC):
     actions_dimension: int
     action_preferences: List[Callable[[List[float]], float]]  # Action preferences
     parameters: List[float]  # Parameters for the policy (theta)
+    action_average_rewards: Dict[int, float] = field(default_factory=dict)
+    action_counts: Dict[int, int] = field(default_factory=dict)
 
     @abstractmethod
     def normalisation_function(self, action_preferences: List[float]) -> List[float]:
@@ -62,6 +64,8 @@ class SoftmaxPolicy(BasePolicy):
     def reset(self) -> None:
         """Reset the policy parameters to their initial state."""
         self.parameters = [0.0] * self.actions_dimension
+        self.action_average_rewards = {i: 0.0 for i in range(self.actions_dimension)}
+        self.action_counts = {i: 0 for i in range(self.actions_dimension)}
     
 
 @dataclass
@@ -87,6 +91,9 @@ class PolicyGradient:
             gradient = self.policy.grad_log_policy_density(action)
 
             self.policy.update_parameters(reward, self.learning_rate, self.baseline, gradient)
+
+            self.policy.action_counts[action] += 1
+            self.policy.action_average_rewards[action] += (reward - self.policy.action_average_rewards.get(action, 0)) / self.policy.action_counts[action]
             
             if render:
                 print(f"Step {step}, Action: {action}, Reward: {reward}")
@@ -96,6 +103,7 @@ class PolicyGradient:
         if render:
             print("Training completed.")
             print("Final Policy Density:", self.policy.policy_density(self.policy.parameters))
+            print("Final average rewards:", self.policy.action_average_rewards)
 
 
 if __name__ == "__main__":

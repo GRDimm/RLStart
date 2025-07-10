@@ -12,12 +12,14 @@ class EpsilonGreedy:
     epsilon: float
     step: int = 0
     action_average_reward: Dict[int, float] = field(default_factory=dict)
+    action_counts: Dict[int, int] = field(default_factory=dict)
 
     def reset(self):
         """Reset the environment and the agent's state."""
         self.environment.reset()
         self.step = 0
         self.action_average_reward = {action: 0.0 for action in range(self.environment.actions_dimension)}
+        self.action_counts = {action: 0 for action in range(self.environment.actions_dimension)}
 
     def train(self, n_steps: int, render: bool = False):
         self.reset()
@@ -37,7 +39,8 @@ class EpsilonGreedy:
             reward = self.environment.step(action)
             
             # Update the average reward for the selected action
-            self.action_average_reward[action] = (self.action_average_reward.get(action, 0) * self.step + reward ) / (self.step + 1)
+            self.action_counts[action] += 1
+            self.action_average_reward[action] = (self.action_average_reward.get(action, 0) * (self.action_counts[action] - 1) + reward) / self.action_counts[action]
             self.step += 1
 
             if render:

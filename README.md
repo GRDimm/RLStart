@@ -87,9 +87,6 @@ Expected reward with the strategy: **4.1495**
 - Like Greedy but adds an exploration probability of epsilon. Each step, select a random action with probability epsilon else pick the greedy action.
 
 - In the same example as above with 3 dimensional action space.
-<p align="center">
-  <img src="https://github.com/GRDimm/RLStart/blob/main/8%20-%20RL%20algos%20from%20scratch/images/greedy_reward_distributions.png" width="80%" height="80%" />
-</p>
 
 - Epsilon Greedy's output explores so discovers that action 2 is more rewarding on average.
 
@@ -99,8 +96,31 @@ Expected reward with the strategy: **4.1495**
 | 1      | 3.31           |
 | 2      | 10.03          |
 
-#### Next on the list
-- Policy gradient
-- UCB
+#### Policy gradient
+
+- Gradient ascent on the model's parameters.
+
+- In the same example as above with 3 dimensional action space.
+
+- Works good on that example
+
+| Action | Average Reward |
+|--------|----------------|
+| 0      | -0.32          |
+| 1      | 5.0            |
+| 2      | 10.18          |
+
+#### UCB
+
+- Greedy but with exploration bounds.
+
+- In the same example as above with 3 dimensional action space.
+
+| Action | Average Reward |
+|--------|----------------|
+| 0      | 0.28           |
+| 1      | 5.15           |
+| 2      | 10.11          |
+
 
 
