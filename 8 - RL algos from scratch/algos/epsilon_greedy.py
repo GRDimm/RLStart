@@ -19,4 +19,4 @@ class EpsilonGreedy(NArmedBanditAlgorithm):
         
 if __name__ == "__main__":
     agent = normal_n_armed_bandit_example(EpsilonGreedy)
-    agent.train(n_steps=1000, render=True)
+    agent.train(n_steps=100000, render=True)

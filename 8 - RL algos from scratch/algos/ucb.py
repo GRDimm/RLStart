@@ -1,13 +1,9 @@
-
-
 from dataclasses import dataclass, field
-import random
-from typing import Callable, Dict, List
+from typing import Callable
 
 from numpy import log, sqrt
 
-from algo import NArmedBanditAlgorithm
-from utils.environment_utils import FiniteActionSpaceEnvironment, NArmedBanditEnvironment
+from algos.algo import NArmedBanditAlgorithm
 from utils.example_utils import normal_n_armed_bandit_example
 
 

@@ -1,31 +1,31 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable, List
-
 from matplotlib import pyplot as plt
 
 @dataclass(frozen=True)
 class BaseEnvironment(ABC):
     def reset(self) -> None:
         """Reset the environment to its initial state."""
-        raise NotImplementedError("This method should be overridden by subclasses.")
+        pass
 
+    @abstractmethod
     def step(self, action: int) -> float:
         """Take an action in the environment and return the result."""
-        raise NotImplementedError("This method should be overridden by subclasses.")
+        pass
     
     def first_render(self) -> None:
         """Render the initial state of the environment."""
-        raise NotImplementedError("This method should be overridden by subclasses.")
+        pass
+
+@dataclass(frozen=True)
+class FiniteActionSpaceStatelessEnvironment(BaseEnvironment):
+    actions_dimension: int  # Available actions in the environment [0, actions_dimension - 1]
 
 
 @dataclass(frozen=True)
-class FiniteActionSpaceEnvironment(BaseEnvironment):
-    actions_dimension: int
-
-
-@dataclass(frozen=True)
-class NArmedBanditEnvironment(FiniteActionSpaceEnvironment):
+class NArmedBanditEnvironment(FiniteActionSpaceStatelessEnvironment):
+    """Environment for N-armed bandit problems."""
     reward_distributions: List[Callable[[], float]]
     
     def action_reward(self, action: int) -> float:
@@ -36,9 +36,6 @@ class NArmedBanditEnvironment(FiniteActionSpaceEnvironment):
             raise ValueError("Invalid action: action must be between 0 and n_actions - 1")
         
         return self.action_reward(action)
-    
-    def reset(self):
-        pass
     
     def first_render(self):
         print(f"Current action space: {self.actions_dimension}")
@@ -52,4 +49,11 @@ class NArmedBanditEnvironment(FiniteActionSpaceEnvironment):
         plt.legend()
         #plt.savefig("greedy_reward_distributions.png")
         plt.show()
+
+
+@dataclass(frozen=True)
+class FiniteActionSpaceEnvironment(BaseEnvironment):
+    """Environment with finite action space and state space."""
+    actions_dimension: int  # Available actions in the environment [0, actions_dimension - 1]
+    state_dimension: int  # Environments states [0, state_dimension - 1]
 

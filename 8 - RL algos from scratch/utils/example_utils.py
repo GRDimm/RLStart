@@ -1,7 +1,7 @@
 import random
-from typing import Any, Dict, Tuple
+from typing import Any
 import numpy as np
-from algo import NArmedBanditAlgorithm
+from algos.algo import NArmedBanditAlgorithm
 from utils.environment_utils import NArmedBanditEnvironment
 
 

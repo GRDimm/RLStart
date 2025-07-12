@@ -2,10 +2,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, Tuple
-
-from tqdm import tqdm
-
-from utils.environment_utils import BaseEnvironment, FiniteActionSpaceEnvironment
+from utils.environment_utils import BaseEnvironment, FiniteActionSpaceStatelessEnvironment
 from rich.live import Live
 from rich.table import Table
 from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
@@ -19,7 +16,7 @@ class NArmedBanditAlgorithm(Algorithm, ABC):
     """
     Class for any stateless N-action space algorithm.
     """
-    environment: FiniteActionSpaceEnvironment
+    environment: FiniteActionSpaceStatelessEnvironment
     action_reward_average: Dict[int, float] = field(default_factory=dict)
     action_reward_variance: Dict[int, float] = field(default_factory=dict)
     action_counts: Dict[int, int] = field(default_factory=dict)

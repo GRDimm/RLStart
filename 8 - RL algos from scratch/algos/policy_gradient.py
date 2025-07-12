@@ -6,7 +6,7 @@ import random
 from typing import Callable, List
 import numpy as np
 
-from algo import NArmedBanditAlgorithm
+from algos.algo import NArmedBanditAlgorithm
 from utils.example_utils import normal_n_armed_bandit_example
 
 @dataclass
@@ -78,7 +78,6 @@ class PolicyGradient(NArmedBanditAlgorithm):
     policy: BasePolicy = SoftmaxPolicy.base_case()
     learning_rate: float = 0.01
     baseline: float = 0.0
-
 
     def select_action(self) -> int:
         return self.policy.sample_action()
