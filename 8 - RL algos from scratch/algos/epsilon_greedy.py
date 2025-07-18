@@ -5,9 +5,11 @@ from algo import NArmedBanditAlgorithm
 from utils.example_utils import normal_n_armed_bandit_example
 
 
-@dataclass
+
 class EpsilonGreedy(NArmedBanditAlgorithm):
-    epsilon: float = 0.1  # Probability of exploring
+    def __init__(self, environment, epsilon: float = 0.1):
+        super().__init__(environment)
+        self.epsilon = epsilon
 
     def select_action(self) -> int:
         if random.random() < self.epsilon:
@@ -19,4 +21,4 @@ class EpsilonGreedy(NArmedBanditAlgorithm):
         
 if __name__ == "__main__":
     agent = normal_n_armed_bandit_example(EpsilonGreedy)
-    agent.train(n_steps=100000, render=True)
+    agent.train(n_episodes=100000, render=True)

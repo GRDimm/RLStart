@@ -2,7 +2,7 @@ import random
 from typing import Any
 import numpy as np
 from algos.algo import NArmedBanditAlgorithm
-from utils.environment_utils import NArmedBanditEnvironment
+from environment.environment import NArmedBanditEnvironment
 
 
 def normal_n_armed_bandit_example(algo: NArmedBanditAlgorithm, *args: Any, **kwargs: Any) -> NArmedBanditAlgorithm:

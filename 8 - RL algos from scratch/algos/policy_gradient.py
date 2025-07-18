@@ -73,20 +73,23 @@ class SoftmaxPolicy(BasePolicy):
         return SoftmaxPolicy(action_preferences=action_preferences, parameters=initial_parameters)
     
 
-@dataclass
 class PolicyGradient(NArmedBanditAlgorithm):
-    policy: BasePolicy = SoftmaxPolicy.base_case()
-    learning_rate: float = 0.01
-    baseline: float = 0.0
+    def __init__(self, environment, policy: BasePolicy = SoftmaxPolicy.base_case(), learning_rate: float = 0.01, baseline: float = 0.0):
+        super().__init__(environment)
+        self.environment = environment
+        self.policy = policy
+        self.learning_rate = learning_rate
+        self.baseline = baseline
+        self.reset()
 
     def select_action(self) -> int:
         return self.policy.sample_action()
 
-    def update_algorithm(self, action: int, reward: float) -> None:
+    def update_algorithm_step(self, action: int, reward: float) -> None:
         gradient = self.policy.grad_log_policy_density(action)
         self.policy.update_parameters(reward, self.learning_rate, self.baseline, gradient)
 
 
 if __name__ == "__main__":   
     policy_gradient = normal_n_armed_bandit_example(PolicyGradient)
-    policy_gradient.train(n_steps=1000, render=True)
+    policy_gradient.train(n_episodes=1000, render=True)
