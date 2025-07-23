@@ -1,8 +1,9 @@
 
 from abc import ABC, abstractmethod
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, Tuple
-from environment.environment import BaseEnvironment, FiniteActionSpaceEnvironment, FiniteActionSpaceStatelessEnvironment
+from environment.environment import BaseEnvironment, FiniteActionSpaceEnvironment, StatelessEnvironment
 from rich.live import Live
 from rich.table import Table
 from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
@@ -15,21 +16,30 @@ class Algorithm(ABC):
         self.training_step: int = 0
         self.stats: Dict[str, Any] = {}
 
-    def train(self, n_episodes: int, render: bool = False):
+    def train(self, n_episodes: int, render: bool = False, render_every: int = 1) -> None:
         self.reset()
-        self.environment.reset()
-
-        progress, task = self.init_progress(n_episodes)
 
         if render:
             self.environment.first_render()
 
         with Live(self.populate_table(), refresh_per_second=4) as live:
             for _ in range(n_episodes):
-                self.train_episode()
-                self.render_stats(live)
-                progress.update(task, advance=1)
+                self.environment.reset()
+                total_steps, total_reward = self.train_episode(live, render, render_every)
+                self.update_episode_stats(total_steps, total_reward)
+                self.update_algorithm_episode(total_steps, total_reward)
         self.run()
+
+    def update_episode_stats(self, total_steps: int, total_reward: float) -> None:
+        """Update statistics after each episode."""
+        self.stats.setdefault("Episode length history", deque(maxlen=5)).append(total_steps)
+        self.stats.setdefault("Episode reward history", deque(maxlen=5)).append(total_reward)
+        # Average episode length for last 5 episodes
+        lengths = list(self.stats["Episode length history"])
+        self.stats["Average episode length"] = sum(lengths) / len(lengths)
+    
+    def update_algorithm_episode(self, total_steps: int, total_reward: float) -> None:
+        """Update algorithm-specific statistics after each episode."""
 
     @abstractmethod
     def reset(self) -> None:
@@ -41,47 +51,51 @@ class Algorithm(ABC):
         """Select an action based on the current policy."""
         pass
 
-    def train_episode(self) -> None:
+    def train_episode(self, live: Live, render: bool = False, render_every: int = 1) -> None:
         """Perform a single training episode."""
         done = False
+        total_steps = 0
+        total_reward = 0.0
         while not done:
+            previous_state = self.environment.state(normalized=True)
             action = self.select_action()
             new_state, reward, done, info = self.environment.step(action)
-            self.update_algorithm_step(action, reward)
+            if render and total_steps % render_every == 0:
+                self.environment.render()
+            self.update_algorithm_step(action, reward, previous_state, new_state, done)
+            self.update_base_stats(action, reward)
             self.update_stats(action, reward)
+            self.render_stats(live)
+            total_steps += 1
+            total_reward += reward
             self.training_step += 1
+        
         self.episode += 1
+        return total_steps, total_reward
+
+    def update_base_stats(self, action: Any, reward: float) -> None:
+        """Update the base statistics for the algorithm."""
+        self.stats["Average episode length"] = self.training_step / self.episode if self.episode > 0 else 0
 
     def update_stats(self, action: Any, reward: float) -> None:
         pass
 
-    def update_algorithm_step(self, action: Any, reward: float) -> None:
+    def update_algorithm_step(self, action: Any, reward: float, previous_state: Any, next_state: Any, done: bool) -> None:
         """Update the algorithm's state after receiving a reward."""
         pass
-
-    def init_progress(self, n_episodes: int) -> Tuple[Progress, int]:
-        progress = Progress(
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TimeRemainingColumn(),
-        )
-        task = progress.add_task("Training", total=n_episodes)
-        return progress, task
 
     def populate_table(self) -> Table:
         table = Table(title="Training Stats")
         table.add_column("Metric", justify="left")
         table.add_column("Values", justify="left")
 
-        table.add_row("Episode", str(self.episode))
-        table.add_row("Training Step", str(self.training_step))
-
         for stat, value in self.stats.items():
             if isinstance(value, dict):
                 value = ", ".join(f"{k}: {v:.2f}" for k, v in value.items())
-            elif isinstance(value, list):
+            elif isinstance(value, (list, deque)):
                 value = ", ".join(f"{v:.2f}" for v in value)
+            elif isinstance(value, float):
+                value = f"{value:.2f}"
             else:
                 value = str(value)
             table.add_row(stat, value)
@@ -92,10 +106,11 @@ class Algorithm(ABC):
 
     def run(self) -> None:
         """Run the algorithm's main loop."""
-        for _ in range(10):
-            self.run_episode()
+        continue_running = True
+        while continue_running:
+            continue_running = self.run_episode()
     
-    def run_episode(self) -> None:
+    def run_episode(self) -> bool:
         """Run a single episode of the algorithm."""
         raise NotImplementedError("This method should be overridden by subclasses.")
 
@@ -104,10 +119,9 @@ class NArmedBanditAlgorithm(Algorithm):
     """
     Class for any stateless N-action space algorithm.
     """
-    def __init__(self, environment: FiniteActionSpaceStatelessEnvironment):
+    def __init__(self, environment: StatelessEnvironment):
         super().__init__(environment)
         self.environment = environment
-        self.training_step: int = 0
         self.action_reward_average: Dict[int, float] = {}
         self.action_reward_variance: Dict[int, float] = {}
         self.action_counts: Dict[int, int] = {}
@@ -131,49 +145,24 @@ class NArmedBanditAlgorithm(Algorithm):
         self.stats["Action Reward Average"] = self.action_reward_average
         self.stats["Action Reward Variance"] = self.action_reward_variance      
     
-    def run_episode(self) -> None:
+    def run_episode(self) -> bool:
         """Run the algorithm's training process."""
         action = self.select_action()
         new_state, reward, done, info = self.environment.step(action)
         print(f"Action: {action}, Reward: {reward}")
+        return True
 
 
-@dataclass
 class StatefulDiscreteActionSpaceAlgorithm(Algorithm, ABC):
-    environment: FiniteActionSpaceEnvironment
-
-    @abstractmethod
-    def select_action(self, state: Tuple[float, ...]) -> int:
-        """Select an action based on the current policy."""
-        raise NotImplementedError("This method should be overridden by subclasses.")
+    def __init__(self, environment: FiniteActionSpaceEnvironment):
+        super().__init__(environment)
+        self.environment = environment
+        self.stats = {"Actions counts": {}}
     
-    @abstractmethod
-    def update_algorithm_step(self, action: int, new_state: Tuple[float, ...], reward: float) -> None:
-        """Update the algorithm after receiving a reward."""
-        raise NotImplementedError("This method should be overridden by subclasses.")
+    def update_base_stats(self, action: Any, reward: float) -> None:
+        """Update the base statistics for the algorithm."""
+        self.stats["Episode"] = self.episode
+        self.stats["Step"] = self.training_step
+        self.stats["Actions counts"][action] = self.stats["Actions counts"].get(action, 0) + 1
 
-    def train(self, n_steps, render: bool = False) -> None:
-        self.reset()
-        self.environment.reset()
-
-        progress, task = self.init_progress(n_steps)
-
-        if render:
-            print("Training started...")
-            print(self.environment.first_render())
-
-        with Live(self.populate_table(), refresh_per_second=4) as live:
-            for _ in range(n_steps):
-                action = self.select_action(self.environment.state)
-                new_state, reward, done, info = self.environment.step(action)
-                self.update_algorithm_step(action, new_state, reward)
-
-                if render and self.training_step % 100 == 0:
-                    self.render_stats(live)
-
-                if render:
-                    progress.update(task, advance=1)
-
-            if render:
-                self.render_stats(live)
-                print("\nTraining completed.")
+    

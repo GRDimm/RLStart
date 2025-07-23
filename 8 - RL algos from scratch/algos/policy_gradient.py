@@ -85,7 +85,7 @@ class PolicyGradient(NArmedBanditAlgorithm):
     def select_action(self) -> int:
         return self.policy.sample_action()
 
-    def update_algorithm_step(self, action: int, reward: float) -> None:
+    def update_algorithm_step(self, action: int, reward: float, previous_state: None, next_state: None) -> None:
         gradient = self.policy.grad_log_policy_density(action)
         self.policy.update_parameters(reward, self.learning_rate, self.baseline, gradient)
 

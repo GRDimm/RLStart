@@ -1,10 +1,13 @@
-from dataclasses import dataclass, field
-from typing import Callable
-
+from collections import deque
+import random
+from typing import Callable, Dict, Tuple
 from numpy import log, sqrt
-
-from algos.algo import NArmedBanditAlgorithm
-from utils.example_utils import normal_n_armed_bandit_example
+import pygame
+import torch
+from algos.algo import NArmedBanditAlgorithm, StatefulDiscreteActionSpaceAlgorithm
+from environment.environment import FiniteActionSpaceEnvironment
+from utils.example_utils import cartpole_example, normal_n_armed_bandit_example
+from utils.q_learning_utils import QNetwork
 
 
 class UCB(NArmedBanditAlgorithm):
@@ -34,8 +37,7 @@ class UCB(NArmedBanditAlgorithm):
             return 0.0
         return sqrt(2 * log(step) * action_reward_variance / action_count) + 3 * log(step) / action_count
 
-        
+    
 if __name__ == "__main__":
     ucb_agent = normal_n_armed_bandit_example(UCB)
     ucb_agent.train(n_episodes=100000, render=True)
-    

@@ -1,9 +1,6 @@
-
-from dataclasses import dataclass
 import random
 from algos.algo import NArmedBanditAlgorithm
 from utils.example_utils import normal_n_armed_bandit_example
-
 
 
 class Greedy(NArmedBanditAlgorithm):
