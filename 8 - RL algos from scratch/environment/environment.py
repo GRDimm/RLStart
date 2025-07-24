@@ -1,8 +1,5 @@
 from abc import ABC, abstractmethod
-import asyncio
-from dataclasses import dataclass, field
 import math
-import platform
 import random
 from typing import Any, Callable, List, Optional, Tuple
 from matplotlib import pyplot as plt
@@ -56,14 +53,20 @@ class StatelessEnvironment(BaseEnvironment, ABC):
         pass
 
 
-class FiniteActionSpaceEnvironment(BaseEnvironment, ABC):
+class FiniteActionEnvironment(BaseEnvironment, ABC):
     """Environment with finite action space and state space."""
     def __init__(self, actions_dimension: int, **kwargs: Any):
         super().__init__(**kwargs)
         self.actions_dimension = actions_dimension  # Available actions in the environment [0, actions_dimension - 1]
 
 
-class NArmedBanditEnvironment(FiniteActionSpaceEnvironment, StatelessEnvironment):
+class StatelessFiniteActionEnvironment(FiniteActionEnvironment, StatelessEnvironment):
+    """Environment with finite action space and stateless behavior."""
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+
+
+class NArmedBanditEnvironment(StatelessFiniteActionEnvironment):
     """Environment for N-armed bandit problems."""
     def __init__(self, reward_distributions: List[Callable[[], float]], **kwargs: Any):
         super().__init__(**kwargs)
@@ -94,14 +97,14 @@ class NArmedBanditEnvironment(FiniteActionSpaceEnvironment, StatelessEnvironment
         plt.show()
 
 
-class FiniteStateSpaceEnvironment(BaseEnvironment, ABC):
+class FiniteStateEnvironment(BaseEnvironment, ABC):
     """Environment with finite action space and state space."""
     def __init__(self, state_dimension: int, **kwargs: Any):
         super().__init__(**kwargs)
         self.state_dimension = state_dimension
 
 
-class InfiniteStateSpaceEnvironment(BaseEnvironment, ABC):
+class ContinuousStateEnvironment(BaseEnvironment, ABC):
     """Environment with infinite state space."""
     def __init__(self, initial_state: Tuple[float, ...], **kwargs: Any):
         super().__init__(**kwargs)
@@ -113,35 +116,67 @@ class InfiniteStateSpaceEnvironment(BaseEnvironment, ABC):
         pass
 
 
-class FrozenLakeEnvironment(FiniteActionSpaceEnvironment, FiniteStateSpaceEnvironment):
+class FiniteStateFiniteActionEnvironment(FiniteActionEnvironment, FiniteStateEnvironment):
+    """Environment with finite action space and finite state space."""
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+
+
+class FrozenLakeEnvironment(FiniteStateFiniteActionEnvironment):
     def __init__(self, 
         grid_size: int = 10,
-        initial_state: Tuple[int, int] = (0, 0),
-        goal_state: Tuple[int, int] = (9, 9),
-        hole_states: List[Tuple[int, int]] = [(1, 1), (1, 2), (2, 1)],
-        slip_probability: float = 0.1,
-        **kwargs: Any):
-        super().__init__(actions_dimension=4, state_dimension=grid_size**2, **kwargs)
+        initial_state: Optional[Tuple[int, int]] = None,
+        goal_state: Optional[Tuple[int, int]] = None,
+        hole_states: Optional[List[Tuple[int, int]]] = None,
+        slip_probability: float = 0.1
+    ):
+        super().__init__(actions_dimension=4, state_dimension=grid_size**2)
         self.grid_size = grid_size
-        self.initial_state = initial_state
-        self.goal_state = goal_state
-        self.hole_states = hole_states
+
+        if initial_state is None and goal_state is None and hole_states is None:
+            self.initial_state, self.goal_state, self.hole_states = self.generate_random_grid(grid_size)
+        else:
+            self.initial_state = initial_state
+            self.goal_state = goal_state
+            self.hole_states = hole_states
+        
         self.slip_probability = slip_probability
-        self.x, self.y = initial_state
+        self.steps = 0
+        self.max_steps = grid_size * grid_size * 10  # Maximum steps to prevent infinite loop
         self.reset()
+    
+    @staticmethod
+    def generate_random_grid(grid_size: int, hole_ratio: float = 0.2) -> Tuple[Tuple[int, int], Tuple[int, int], List[Tuple[int, int]]]:
+        initial_state = (random.randint(0, grid_size - 1), random.randint(0, grid_size - 1))
+        goal_state = initial_state
+        while goal_state == initial_state:
+            goal_state = (random.randint(0, grid_size - 1), random.randint(0, grid_size - 1))
+
+        max_holes = int(grid_size * grid_size * hole_ratio)
+        hole_states = set()
+        while len(hole_states) < max_holes:
+            h = (random.randint(0, grid_size - 1), random.randint(0, grid_size - 1))
+            if h != initial_state and h != goal_state:
+                hole_states.add(h)
+
+        return initial_state, goal_state, list(hole_states)
 
     def reset(self) -> None:
         """Reset the environment to its initial state."""
         self.x, self.y = self.initial_state
+        self.steps = 0
     
-    def state(self, normalized: bool = False) -> Tuple[int, int]:
+    def state(self, normalized: bool = False) -> int:
         """Get the current state of the environment."""
-        return (self.x, self.y)
-
+        return self.x + self.y * self.grid_size
+    
     def step(self, action: Optional[int] = None) -> Tuple[Tuple[int, int], float, bool, dict]:
         """Take an action in the environment and return the result."""
         if action is None:
             return self.state(), 0.0, False, {}
+
+        if self.steps >= self.max_steps:
+            return self.state(), -1, True, {}
 
         # Possible actions: 0=up, 1=down, 2=left, 3=right
         actions = {
@@ -168,16 +203,19 @@ class FrozenLakeEnvironment(FiniteActionSpaceEnvironment, FiniteStateSpaceEnviro
         
         if (self.x, self.y) in self.hole_states:
             return self.state(), -1.0, True, {}
-
-        return self.state(), 0.0, False, {}
+        
+        self.steps += 1
+        
+        return self.state(), -0.05, False, {}
     
-    def render(self) -> None:
+    def render(self, max_step_per_second: Optional[int] = None) -> None:
         """Render the current state of the environment in pygame."""
 
         if not hasattr(self, 'screen'):
             pygame.init()
             self.screen = pygame.display.set_mode((self.grid_size * 50, self.grid_size * 50))
             pygame.display.set_caption("Frozen Lake")
+            self.clock = pygame.time.Clock()
         
         self.screen.fill((255, 255, 255))
         for i in range(self.grid_size):
@@ -187,6 +225,8 @@ class FrozenLakeEnvironment(FiniteActionSpaceEnvironment, FiniteStateSpaceEnviro
                     pygame.draw.rect(self.screen, (0, 255, 0), rect)
                 elif (i, j) in self.hole_states:
                     pygame.draw.rect(self.screen, (255, 0, 0), rect)
+                elif (i, j) == self.initial_state:
+                    pygame.draw.rect(self.screen, (0, 0, 255), rect)
                 else:
                     pygame.draw.rect(self.screen, (200, 200, 200), rect)
         player_rect = pygame.Rect(self.y * 50, self.x * 50, 50, 50)
@@ -194,8 +234,12 @@ class FrozenLakeEnvironment(FiniteActionSpaceEnvironment, FiniteStateSpaceEnviro
 
         # Display reward and state
         font = pygame.font.Font(None, 36)
-        state_text = font.render(f"{self.state()}", True, (0, 0, 0))
+        state_text = font.render(f"State: {self.state()}", True, (0, 0, 0))
         self.screen.blit(state_text, (10, 10))
+
+        # Display time step
+        time_text = font.render(f"Step: {self.steps}", True, (0, 0, 0))
+        self.screen.blit(time_text, (10, 40))
 
         pygame.display.flip()
         pygame.event.pump()
@@ -203,7 +247,9 @@ class FrozenLakeEnvironment(FiniteActionSpaceEnvironment, FiniteStateSpaceEnviro
             if event.type == pygame.QUIT:
                 pygame.quit()
                 return
-        pygame.time.delay(100)
+        
+        if max_step_per_second:
+            self.clock.tick(max_step_per_second)
 
     def run(self) -> None:
         """Run the Frozen Lake environment."""
@@ -228,7 +274,18 @@ class FrozenLakeEnvironment(FiniteActionSpaceEnvironment, FiniteStateSpaceEnviro
                         self.reset()
         pygame.quit()
 
-class CartPoleEnvironment(FiniteActionSpaceEnvironment, InfiniteStateSpaceEnvironment):
+
+class ContinousStateFiniteActionEnvironment(FiniteActionEnvironment, ContinuousStateEnvironment):
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+
+
+class StatefulFiniteActionEnvironment(FiniteStateFiniteActionEnvironment, ContinousStateFiniteActionEnvironment):
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        
+
+class CartPoleEnvironment(ContinousStateFiniteActionEnvironment):
     def __init__(self,
         screen_width=1920,
         screen_height=1080,

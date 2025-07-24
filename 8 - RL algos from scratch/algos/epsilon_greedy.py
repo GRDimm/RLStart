@@ -1,16 +1,11 @@
-from collections import deque
 import random
-from typing import Dict, Tuple
-
-import pygame
 import torch
-from algo import NArmedBanditAlgorithm, StatefulDiscreteActionSpaceAlgorithm
-from environment.environment import FiniteActionSpaceEnvironment
-from utils.example_utils import cartpole_example, normal_n_armed_bandit_example
-from utils.q_learning_utils import QNetwork
+from algo import StatelessFiniteActionSpaceAlgorithm, StatefulFiniteActionAlgorithm
+from environment.environment import FiniteStateFiniteActionEnvironment, StatelessFiniteActionEnvironment
+from utils.example_utils import cartpole_example, frozenlake_example, normal_n_armed_bandit_example
 
-class EpsilonGreedy(NArmedBanditAlgorithm):
-    def __init__(self, environment, epsilon: float = 0.1):
+class EpsilonGreedy(StatelessFiniteActionSpaceAlgorithm):
+    def __init__(self, environment: StatelessFiniteActionEnvironment, epsilon: float = 0.1):
         super().__init__(environment)
         self.epsilon = epsilon
 
@@ -23,92 +18,47 @@ class EpsilonGreedy(NArmedBanditAlgorithm):
         return max(self.action_reward_average, key=self.action_reward_average.get) if self.action_reward_average else random.randint(0, self.environment.actions_dimension - 1)
 
 
-class QLearningEpsilonGreedy(StatefulDiscreteActionSpaceAlgorithm):  # TODO: Make this work
-    def __init__(self, environment: FiniteActionSpaceEnvironment, epsilon: float = 0.1, epsilon_min: float = 0.01, epsilon_decay: float = 0.999):
+class TableQLearningEpsilonGreedy(StatefulFiniteActionAlgorithm):
+    def __init__(self, environment: FiniteStateFiniteActionEnvironment, epsilon: float = 1.0, epsilon_min: float = 0.05, epsilon_decay: float = 0.995, alpha: float = 0.1, gamma: float = 0.9):
         super().__init__(environment)
         self.environment = environment
-        self.model = QNetwork(len(environment.state()), environment.actions_dimension)
-        self.gamma = 0.95  # Discount factor
+        self.state_dim = environment.state_dimension
+        self.action_dim = environment.actions_dimension
+        self.q_table = [[0.0 for _ in range(self.action_dim)] for _ in range(self.state_dim)]
+        self.gamma = gamma
+        self.alpha = alpha
         self.epsilon = epsilon
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
-        self.gamma = 0.99
-        self.replay_buffer = deque(maxlen=10000)
-        self.batch_size = 128
-        self.action_reward_average: Dict[int, float] = {}
-        self.action_reward_variance: Dict[int, float] = {}
-        self.action_counts: Dict[int, int] = {}
-        self.training_frequency = 200
-        self.target_model = QNetwork(len(environment.state()), environment.actions_dimension)
-        self.target_model.load_state_dict(self.model.state_dict())
-        self.target_update_frequency = 600
-    
+
     def select_action(self) -> int:
         if random.random() < self.epsilon:
-            action = random.choice([0, 1])
-        else:
-            q_values = self.model(torch.tensor(self.environment.state(normalized=True), dtype=torch.float32).unsqueeze(0))
-            action = torch.argmax(q_values).item()
-        return action
-    
-    def update_algorithm_step(self, action: int, reward: float, previous_state: Tuple[float, ...], next_state: Tuple[float, ...], done: bool) -> None:
-        assert 0 <= action < self.environment.actions_dimension
-        self.replay_buffer.append((previous_state, action, reward, next_state, done))
+            return random.randint(0, self.action_dim - 1)
+        state = self.environment.state()
+        return int(torch.argmax(torch.tensor(self.q_table[state])).item())
 
-        if len(self.replay_buffer) < self.batch_size or self.training_step % self.training_frequency != 0:
-            return
-
-        batch = random.sample(self.replay_buffer, self.batch_size)
-        loss_total = 0.0
-        self.model.optimizer.zero_grad()
-
-        for s, a, r, s_next, done in batch:
-            s = torch.tensor(s, dtype=torch.float32).unsqueeze(0)
-            s_next = torch.tensor(s_next, dtype=torch.float32).unsqueeze(0)
-            r = torch.tensor([r], dtype=torch.float32)
-
-            with torch.no_grad():
-                if done:
-                    target = r
-                else:
-                    target = r + self.gamma * self.target_model(s_next).max(1)[0]
-
-            q_pred = self.model(s)[0, a]
-            loss_total += (q_pred - target[0]) ** 2
-
-        loss_total.backward()
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-        self.model.optimizer.step()
-        self.stats["Loss"] = loss_total.item() / self.batch_size
-
-        if self.training_step % self.target_update_frequency == 0:
-            self.target_model.load_state_dict(self.model.state_dict())
+    def update_algorithm_step(self, action: int, reward: float, previous_state: int, next_state: int, done: bool) -> None:
+        q_next = 0 if done else max(self.q_table[next_state])
+        td_target = reward + self.gamma * q_next
+        td_error = td_target - self.q_table[previous_state][action]
+        self.q_table[previous_state][action] += self.alpha * td_error
 
     def update_algorithm_episode(self, total_steps: int, total_reward: float) -> None:
-        """Update epsilon after each episode."""
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+        self.epsilon = max(self.epsilon * self.epsilon_decay, self.epsilon_min)
         self.stats["Epsilon"] = self.epsilon
 
     def reset(self) -> None:
-        """Reset the environment and the agent's state."""
-        self.environment.reset()
         self.training_step = 0
         self.episode = 0
-        self.replay_buffer.clear()
+        self.environment.reset()
 
     def run_episode(self) -> bool:
-        """Run a single episode of the algorithm."""
         self.environment.reset()
         done = False
         while not done:
-            action = self.select_action()
-            next_state, reward, done, _ = self.environment.step(action)
             self.environment.render()
-        
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    return False
+            action = self.select_action()
+            _, _, done, _ = self.environment.step(action)
         return True
         
 
@@ -118,5 +68,5 @@ if __name__ == "__main__":
     # agent.train(n_episodes=100000, render=True)
 
     # Q-learning with Epsilon-Greedy agent example
-    q_agent = cartpole_example(QLearningEpsilonGreedy, epsilon=0.4, epsilon_min=0.01, epsilon_decay=0.9995)
-    q_agent.train(n_episodes=10000, render=True, render_every=1000)
+    q_agent = frozenlake_example(TableQLearningEpsilonGreedy, epsilon=0.1, epsilon_min=0.01, epsilon_decay=0.999)
+    q_agent.train(n_episodes=10000, render=True, render_every=10)

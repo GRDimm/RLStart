@@ -1,16 +1,11 @@
-from collections import deque
-import random
-from typing import Callable, Dict, Tuple
+from typing import Callable
 from numpy import log, sqrt
-import pygame
-import torch
-from algos.algo import NArmedBanditAlgorithm, StatefulDiscreteActionSpaceAlgorithm
-from environment.environment import FiniteActionSpaceEnvironment
+
+from algos.algo import StatelessFiniteActionSpaceAlgorithm
 from utils.example_utils import cartpole_example, normal_n_armed_bandit_example
-from utils.q_learning_utils import QNetwork
 
 
-class UCB(NArmedBanditAlgorithm):
+class UCB(StatelessFiniteActionSpaceAlgorithm):
     def __init__(self, environment, upper_bound: Callable[[int, int, float, float], float] = None):
         super().__init__(environment)
         # Function to calculate the upper confidence bound

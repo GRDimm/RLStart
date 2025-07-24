@@ -1,9 +1,9 @@
 import random
-from algos.algo import NArmedBanditAlgorithm
+from algos.algo import StatelessFiniteActionSpaceAlgorithm
 from utils.example_utils import normal_n_armed_bandit_example
 
 
-class Greedy(NArmedBanditAlgorithm):
+class Greedy(StatelessFiniteActionSpaceAlgorithm):
     def __init__(self, environment):
         super().__init__(environment)
 

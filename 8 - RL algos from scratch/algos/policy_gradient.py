@@ -6,7 +6,7 @@ import random
 from typing import Callable, List
 import numpy as np
 
-from algos.algo import NArmedBanditAlgorithm
+from algos.algo import StatelessFiniteActionSpaceAlgorithm
 from utils.example_utils import normal_n_armed_bandit_example
 
 @dataclass
@@ -73,7 +73,7 @@ class SoftmaxPolicy(BasePolicy):
         return SoftmaxPolicy(action_preferences=action_preferences, parameters=initial_parameters)
     
 
-class PolicyGradient(NArmedBanditAlgorithm):
+class PolicyGradient(StatelessFiniteActionSpaceAlgorithm):
     def __init__(self, environment, policy: BasePolicy = SoftmaxPolicy.base_case(), learning_rate: float = 0.01, baseline: float = 0.0):
         super().__init__(environment)
         self.environment = environment

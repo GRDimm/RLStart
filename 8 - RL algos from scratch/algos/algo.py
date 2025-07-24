@@ -1,12 +1,12 @@
-
+from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections import deque
-from dataclasses import dataclass, field
+import datetime
+import pickle
 from typing import Any, Dict, Tuple
-from environment.environment import BaseEnvironment, FiniteActionSpaceEnvironment, StatelessEnvironment
+from environment.environment import BaseEnvironment, StatefulFiniteActionEnvironment, StatelessFiniteActionEnvironment
 from rich.live import Live
 from rich.table import Table
-from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
 
 
 class Algorithm(ABC):
@@ -16,7 +16,7 @@ class Algorithm(ABC):
         self.training_step: int = 0
         self.stats: Dict[str, Any] = {}
 
-    def train(self, n_episodes: int, render: bool = False, render_every: int = 1) -> None:
+    def train(self, n_episodes: int, render: bool = False, render_every: int = 1, then_run: bool = True) -> None:
         self.reset()
 
         if render:
@@ -28,7 +28,9 @@ class Algorithm(ABC):
                 total_steps, total_reward = self.train_episode(live, render, render_every)
                 self.update_episode_stats(total_steps, total_reward)
                 self.update_algorithm_episode(total_steps, total_reward)
-        self.run()
+        
+        if then_run:
+            self.run()
 
     def update_episode_stats(self, total_steps: int, total_reward: float) -> None:
         """Update statistics after each episode."""
@@ -51,17 +53,18 @@ class Algorithm(ABC):
         """Select an action based on the current policy."""
         pass
 
-    def train_episode(self, live: Live, render: bool = False, render_every: int = 1) -> None:
+    def train_episode(self, live: Live, render: bool = False, render_every: int = 1) -> Tuple[int, float]:
         """Perform a single training episode."""
         done = False
         total_steps = 0
         total_reward = 0.0
         while not done:
+            if render and total_steps % render_every == 0:
+                self.environment.render()
+
             previous_state = self.environment.state(normalized=True)
             action = self.select_action()
             new_state, reward, done, info = self.environment.step(action)
-            if render and total_steps % render_every == 0:
-                self.environment.render()
             self.update_algorithm_step(action, reward, previous_state, new_state, done)
             self.update_base_stats(action, reward)
             self.update_stats(action, reward)
@@ -113,13 +116,24 @@ class Algorithm(ABC):
     def run_episode(self) -> bool:
         """Run a single episode of the algorithm."""
         raise NotImplementedError("This method should be overridden by subclasses.")
+    
+    def save(self, path: str) -> None:
+        """Save the algorithm's state to a pickle file."""
+        with open(f"{path}", 'wb') as f:
+            pickle.dump(self, f)
+    
+    @staticmethod
+    def load(path: str) -> Algorithm:
+        """Load the algorithm's state from a pickle file."""
+        with open(path, 'rb') as f:
+            return pickle.load(f)
+        
 
-
-class NArmedBanditAlgorithm(Algorithm):
+class StatelessFiniteActionSpaceAlgorithm(Algorithm):
     """
     Class for any stateless N-action space algorithm.
     """
-    def __init__(self, environment: StatelessEnvironment):
+    def __init__(self, environment: StatelessFiniteActionEnvironment):
         super().__init__(environment)
         self.environment = environment
         self.action_reward_average: Dict[int, float] = {}
@@ -153,8 +167,8 @@ class NArmedBanditAlgorithm(Algorithm):
         return True
 
 
-class StatefulDiscreteActionSpaceAlgorithm(Algorithm, ABC):
-    def __init__(self, environment: FiniteActionSpaceEnvironment):
+class StatefulFiniteActionAlgorithm(Algorithm, ABC):
+    def __init__(self, environment: StatefulFiniteActionEnvironment):
         super().__init__(environment)
         self.environment = environment
         self.stats = {"Actions counts": {}}
